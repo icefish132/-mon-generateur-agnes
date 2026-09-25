@@ -3,60 +3,236 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mon générateur Agnes</title>
+<title>Mon assistant IA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#1C1917;--surface:#242019;--surface2:#2C2720;--amber:#E8A33D;--text:#F2EDE4;--muted:#948B7C;--border:#3A342C;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
-  .wrap{max-width:640px;margin:0 auto;padding:48px 24px 80px;}
-  h1{font-family:'Fraunces',serif;font-size:32px;margin:0 0 8px;}
-  p.sub{color:var(--muted);font-size:14.5px;margin:0 0 32px;}
-  textarea{width:100%;min-height:100px;background:var(--surface2);border:1px solid var(--border);
-    color:var(--text);border-radius:4px;padding:12px 14px;font-family:inherit;font-size:14.5px;resize:vertical;}
-  button{width:100%;margin-top:14px;padding:13px;background:var(--amber);color:#1C1917;
-    border:none;border-radius:4px;font-weight:600;font-size:14.5px;cursor:pointer;}
-  button:disabled{opacity:.5;}
-  .frame{margin-top:24px;min-height:280px;background:var(--surface2);border:1px solid var(--border);
-    border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
-  .frame img{width:100%;display:block;}
-  .msg{color:var(--muted);font-size:14px;padding:20px;text-align:center;}
+  .wrap{max-width:680px;margin:0 auto;padding:40px 24px 24px;min-height:100vh;display:flex;flex-direction:column;}
+  h1{font-family:'Fraunces',serif;font-size:28px;margin:0 0 4px;}
+  p.sub{color:var(--muted);font-size:14px;margin:0 0 20px;}
+
+  .feed{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-bottom:16px;}
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:60px 20px;line-height:1.6;}
+  .entry{max-width:88%;}
+  .entry.user{align-self:flex-end;}
+  .entry.assistant{align-self:flex-start;}
+  .bubble{padding:10px 14px;border-radius:10px;font-size:14.5px;line-height:1.5;}
+  .entry.user .bubble{background:var(--amber);color:#1C1917;}
+  .entry.assistant .bubble{background:var(--surface2);border:1px solid var(--border);}
+  .tag{font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:lowercase;}
+  .entry img, .entry video{max-width:100%;border-radius:8px;border:1px solid var(--border);display:block;}
   .error{color:#E8734D;}
+
+  .composer{border-top:1px solid var(--border);padding-top:14px;}
+  .attach-preview{display:none;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);
+    border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:13px;color:var(--muted);}
+  .attach-preview.show{display:flex;}
+  .attach-preview img{width:32px;height:32px;object-fit:cover;border-radius:4px;}
+  .attach-preview button{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;}
+  .row{display:flex;gap:8px;align-items:flex-end;}
+  .row textarea{flex:1;min-height:46px;max-height:140px;background:var(--surface2);border:1px solid var(--border);
+    color:var(--text);border-radius:8px;padding:12px 14px;font-family:inherit;font-size:14.5px;resize:none;}
+  .icon-btn{width:46px;height:46px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);
+    border-radius:8px;color:var(--muted);font-size:18px;cursor:pointer;}
+  .icon-btn.send{background:var(--amber);color:#1C1917;border:none;font-weight:600;font-size:14px;}
+  .icon-btn:disabled{opacity:.5;}
+  input[type=file]{display:none;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Mon générateur d'images</h1>
-  <p class="sub">Décris une image, elle est générée par Agnes AI.</p>
-  <textarea id="prompt" placeholder="ex : un renard dans une forêt enneigée, style aquarelle"></textarea>
-  <button id="go">Générer</button>
-  <div class="frame" id="frame"><p class="msg">L'image apparaîtra ici.</p></div>
+  <h1>Mon assistant</h1>
+  <p class="sub">Écris ce que tu veux — texte, une image, ou une vidéo. Joins une photo pour l'éditer ou l'animer.</p>
+
+  <div class="feed" id="feed">
+    <p class="empty">Pose une question, décris une image à créer, ou joins une photo à modifier ou animer.</p>
+  </div>
+
+  <div class="composer">
+    <div class="attach-preview" id="attachPreview">
+      <img id="attachThumb" src="">
+      <span id="attachName"></span>
+      <button id="attachRemove">Retirer</button>
+    </div>
+    <div class="row">
+      <button class="icon-btn" id="attachBtn" title="Joindre une image">📎</button>
+      <input type="file" id="fileInput" accept="image/*">
+      <textarea id="promptInput" placeholder="Écris ici…"></textarea>
+      <button class="icon-btn send" id="sendBtn">Envoyer</button>
+    </div>
+  </div>
 </div>
+
 <script>
-  const go = document.getElementById('go');
-  const frame = document.getElementById('frame');
-  go.addEventListener('click', async () => {
-    const prompt = document.getElementById('prompt').value.trim();
-    if (!prompt) return;
-    go.disabled = true;
-    frame.innerHTML = '<p class="msg">Génération en cours…</p>';
-    try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ prompt })
-      });
+  const feed = document.getElementById('feed');
+  const fileInput = document.getElementById('fileInput');
+  const attachBtn = document.getElementById('attachBtn');
+  const attachPreview = document.getElementById('attachPreview');
+  const attachThumb = document.getElementById('attachThumb');
+  const attachName = document.getElementById('attachName');
+  const attachRemove = document.getElementById('attachRemove');
+  const promptInput = document.getElementById('promptInput');
+  const sendBtn = document.getElementById('sendBtn');
+
+  let attachedFile = null;
+  let chatHistory = [];
+
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    attachedFile = f;
+    attachThumb.src = URL.createObjectURL(f);
+    attachName.textContent = f.name;
+    attachPreview.classList.add('show');
+  });
+  attachRemove.addEventListener('click', () => {
+    attachedFile = null;
+    fileInput.value = '';
+    attachPreview.classList.remove('show');
+  });
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function addEntry(role, kind, content) {
+    if (feed.querySelector('.empty')) feed.innerHTML = '';
+    const entry = document.createElement('div');
+    entry.className = 'entry ' + role;
+    if (kind === 'text') {
+      entry.innerHTML = `<div class="bubble">${content}</div>`;
+    } else if (kind === 'error') {
+      entry.innerHTML = `<div class="bubble error">Erreur : ${content}</div>`;
+    } else if (kind === 'image') {
+      entry.innerHTML = `<div class="tag">image</div><img src="${content}">`;
+    } else if (kind === 'video') {
+      entry.innerHTML = `<div class="tag">vidéo</div><video src="${content}" controls autoplay></video>`;
+    } else if (kind === 'loading') {
+      entry.innerHTML = `<div class="bubble">${content}</div>`;
+    }
+    feed.appendChild(entry);
+    feed.scrollTop = feed.scrollHeight;
+    return entry;
+  }
+
+  function detectIntent(text, hasFile) {
+    const t = text.toLowerCase();
+    const videoWords = /(vid[ée]o|clip|anime|animer|bouge|mouvement)/;
+    const imageWords = /(image|photo|dessin|illustration|visuel|affiche)/;
+    if (hasFile) {
+      return videoWords.test(t) ? 'img2video' : 'edit';
+    }
+    if (videoWords.test(t)) return 'video';
+    if (imageWords.test(t)) return 'image';
+    return 'chat';
+  }
+
+  async function pollVideo(videoId, entry) {
+    for (let i = 0; i < 36; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      const res = await fetch(`/api/video-status?id=${videoId}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
-      frame.innerHTML = '';
-      const img = document.createElement('img');
-      img.src = data.image;
-      frame.appendChild(img);
+      if (!res.ok) throw new Error(data.error || 'Erreur de vérification');
+      if (data.status === 'completed' || data.status === 'succeeded') {
+        if (!data.url) throw new Error('Vidéo terminée mais aucun lien renvoyé');
+        entry.innerHTML = `<div class="tag">vidéo</div><video src="${data.url}" controls autoplay></video>`;
+        return;
+      }
+      if (data.status === 'failed' || data.status === 'error') throw new Error('Échec côté Agnes');
+      entry.innerHTML = `<div class="bubble">Génération en cours (${data.status || '...'})…</div>`;
+    }
+    throw new Error('Délai dépassé — réessaie');
+  }
+
+  sendBtn.addEventListener('click', async () => {
+    const text = promptInput.value.trim();
+    if (!text && !attachedFile) return;
+
+    const hasFile = !!attachedFile;
+    const intent = detectIntent(text, hasFile);
+
+    addEntry('user', 'text', text || '(image jointe)');
+    const thinking = addEntry('assistant', 'loading', 'Un instant…');
+
+    const fileForThisSend = attachedFile;
+    promptInput.value = '';
+    attachedFile = null;
+    fileInput.value = '';
+    attachPreview.classList.remove('show');
+    sendBtn.disabled = true;
+
+    try {
+      if (intent === 'chat') {
+        chatHistory.push({ role: 'user', content: text });
+        const res = await fetch('/api/chat', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ messages: chatHistory })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
+        thinking.innerHTML = `<div class="bubble">${data.reply}</div>`;
+        chatHistory.push({ role: 'assistant', content: data.reply });
+
+      } else if (intent === 'image') {
+        const res = await fetch('/api/generate', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ prompt: text })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
+        thinking.innerHTML = `<div class="tag">image</div><img src="${data.image}">`;
+
+      } else if (intent === 'edit') {
+        const dataUrl = await fileToDataUrl(fileForThisSend);
+        const res = await fetch('/api/edit-image', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ prompt: text, image: dataUrl })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
+        thinking.innerHTML = `<div class="tag">image éditée</div><img src="${data.image}">`;
+
+      } else if (intent === 'video') {
+        thinking.innerHTML = '<div class="bubble">Lancement de la vidéo…</div>';
+        const startRes = await fetch('/api/generate-video', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ prompt: text })
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok) throw new Error(startData.error || 'Erreur au lancement');
+        await pollVideo(startData.video_id, thinking);
+
+      } else if (intent === 'img2video') {
+        thinking.innerHTML = '<div class="bubble">Lancement de l\'animation…</div>';
+        const dataUrl = await fileToDataUrl(fileForThisSend);
+        const startRes = await fetch('/api/generate-video-from-image', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ prompt: text, image: dataUrl })
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok) throw new Error(startData.error || 'Erreur au lancement');
+        await pollVideo(startData.video_id, thinking);
+      }
     } catch (err) {
-      frame.innerHTML = `<p class="msg error">Erreur : ${err.message}</p>`;
+      thinking.innerHTML = `<div class="bubble error">Erreur : ${err.message}</div>`;
     } finally {
-      go.disabled = false;
+      sendBtn.disabled = false;
+    }
+  });
+
+  promptInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
     }
   });
 </script>
