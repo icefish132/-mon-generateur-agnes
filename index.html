@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon générateur Agnes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#1C1917;--surface:#242019;--surface2:#2C2720;--amber:#E8A33D;--text:#F2EDE4;--muted:#948B7C;--border:#3A342C;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  .wrap{max-width:640px;margin:0 auto;padding:48px 24px 80px;}
+  h1{font-family:'Fraunces',serif;font-size:32px;margin:0 0 8px;}
+  p.sub{color:var(--muted);font-size:14.5px;margin:0 0 32px;}
+  textarea{width:100%;min-height:100px;background:var(--surface2);border:1px solid var(--border);
+    color:var(--text);border-radius:4px;padding:12px 14px;font-family:inherit;font-size:14.5px;resize:vertical;}
+  button{width:100%;margin-top:14px;padding:13px;background:var(--amber);color:#1C1917;
+    border:none;border-radius:4px;font-weight:600;font-size:14.5px;cursor:pointer;}
+  button:disabled{opacity:.5;}
+  .frame{margin-top:24px;min-height:280px;background:var(--surface2);border:1px solid var(--border);
+    border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .frame img{width:100%;display:block;}
+  .msg{color:var(--muted);font-size:14px;padding:20px;text-align:center;}
+  .error{color:#E8734D;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mon générateur d'images</h1>
+  <p class="sub">Décris une image, elle est générée par Agnes AI.</p>
+  <textarea id="prompt" placeholder="ex : un renard dans une forêt enneigée, style aquarelle"></textarea>
+  <button id="go">Générer</button>
+  <div class="frame" id="frame"><p class="msg">L'image apparaîtra ici.</p></div>
+</div>
+<script>
+  const go = document.getElementById('go');
+  const frame = document.getElementById('frame');
+  go.addEventListener('click', async () => {
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) return;
+    go.disabled = true;
+    frame.innerHTML = '<p class="msg">Génération en cours…</p>';
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ prompt })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
+      frame.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = data.image;
+      frame.appendChild(img);
+    } catch (err) {
+      frame.innerHTML = `<p class="msg error">Erreur : ${err.message}</p>`;
+    } finally {
+      go.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
